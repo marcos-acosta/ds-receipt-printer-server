@@ -2,8 +2,10 @@
 """Web server that prints the contents of webhook POST requests."""
 
 import json
+import threading
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from types import TracebackType
 from urllib.parse import parse_qs
 import os
 
@@ -22,6 +24,37 @@ PRINTER_IP = os.environ.get("PRINTER_IP", "10.51.46.125")
 
 LINEAR_USER_AGENT_SUBSTRING = "Linear"
 PAGERDUTY_USER_AGENT_SUBSTRING = "PagerDuty"
+
+
+class SerializedPrinter(Printer):
+    """A Printer that gives one thread at a time the connection.
+
+    Each request runs in its own thread, and the printer accepts a single
+    connection. Without this, two receipts interleave on one socket.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._lock = threading.Lock()
+
+    def __enter__(self) -> Printer:
+        self._lock.acquire()
+        try:
+            return super().__enter__()
+        except BaseException:
+            self._lock.release()
+            raise
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        try:
+            super().__exit__(exc_type, exc, tb)
+        finally:
+            self._lock.release()
 
 
 @dataclass(frozen=True)
@@ -63,7 +96,7 @@ def parse_body(body, content_type) -> dict | None:
 
 
 class WebhookRequestHandler(BaseHTTPRequestHandler):
-    printer: Printer = Printer(TcpTransport(PRINTER_IP), throttle_ms=200)
+    printer: Printer = SerializedPrinter(TcpTransport(PRINTER_IP), throttle_ms=200)
     sources: list[WebhookSource] = [
         WebhookSource(
             user_agent_substring=LINEAR_USER_AGENT_SUBSTRING,
