@@ -14,6 +14,7 @@ from nepso import Printer, TcpTransport
 
 from handlers.linear_handler import LinearHandler
 from handlers.pagerduty_handler import PagerDutyHandler
+from handlers.plaintext_handler import PlaintextHandler
 from handlers.webhook_body_handler import WebhookBodyHandler
 from util import read_secrets, signature_matches
 
@@ -24,6 +25,8 @@ PRINTER_IP = os.environ.get("PRINTER_IP", "10.51.46.125")
 
 LINEAR_USER_AGENT_SUBSTRING = "Linear"
 PAGERDUTY_USER_AGENT_SUBSTRING = "PagerDuty"
+CRON_USER_AGENT_SUBSTRING = "Cron"
+SLACKBOT_USER_AGENT_SUBSTRING = "Slackbot"
 
 
 class SerializedPrinter(Printer):
@@ -60,19 +63,22 @@ class SerializedPrinter(Printer):
 @dataclass(frozen=True)
 class WebhookSource:
     user_agent_substring: str
-    signature_header: str
-    secrets: list[str] = field(repr=False)
     handler: WebhookBodyHandler
+    secrets: list[str] = field(default_factory=list, repr=False)
+    signature_header: str | None = None
+    expect_signature: bool = True
 
     @property
-    def header_key(self) -> str:
-        return self.signature_header.lower()
+    def header_key(self) -> str | None:
+        return self.signature_header.lower() if self.signature_header else None
 
     def matches(self, user_agent: str) -> bool:
         return self.user_agent_substring in user_agent
 
     def is_signed(self, body: bytes, headers: dict[str, str]) -> bool:
-        return signature_matches(body, headers.get(self.header_key, ""), self.secrets)
+        return self.header_key is not None and signature_matches(
+            body, headers.get(self.header_key, ""), self.secrets
+        )
 
 
 def parse_body(body, content_type) -> dict | None:
@@ -100,18 +106,28 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
     sources: list[WebhookSource] = [
         WebhookSource(
             user_agent_substring=LINEAR_USER_AGENT_SUBSTRING,
-            signature_header="Linear-Signature",
-            secrets=read_secrets("LINEAR_WEBHOOK_SECRET"),
             handler=LinearHandler(printer=printer),
+            secrets=read_secrets("LINEAR_WEBHOOK_SECRET"),
+            signature_header="Linear-Signature",
         ),
         WebhookSource(
             user_agent_substring=PAGERDUTY_USER_AGENT_SUBSTRING,
-            signature_header="X-PagerDuty-Signature",
+            handler=PagerDutyHandler(printer=printer),
             secrets=read_secrets(
                 "PAGERDUTY_HIGH_PRIORITY_SECRET",
                 "PAGERDUTY_LOW_PRIORITY_SECRET",
             ),
-            handler=PagerDutyHandler(printer=printer),
+            signature_header="X-PagerDuty-Signature",
+        ),
+        WebhookSource(
+            user_agent_substring=CRON_USER_AGENT_SUBSTRING,
+            handler=PlaintextHandler(printer=printer),
+            expect_signature=False,
+        ),
+        WebhookSource(
+            user_agent_substring=SLACKBOT_USER_AGENT_SUBSTRING,
+            handler=PlaintextHandler(printer=printer),
+            expect_signature=False,
         ),
     ]
 
@@ -121,6 +137,7 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(length) if length else b""
         headers = {name.lower(): value for name, value in self.headers.items()}
         user_agent = headers.get("user-agent", "")
+        data = parse_body(body, headers.get("content-type", ""))
 
         source = next((s for s in self.sources if s.matches(user_agent)), None)
         if source is None:
@@ -128,12 +145,11 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
             self.respond(404, "no handler\n")
             return
 
-        if not source.is_signed(body, headers):
+        if source.expect_signature and not source.is_signed(body, headers):
             self.log(f"Rejected an unsigned or badly signed {user_agent} request")
             self.respond(401, "bad signature\n")
             return
 
-        data = parse_body(body, headers.get("content-type", ""))
         if data is None:
             self.log(f"Couldn't parse the body of a {user_agent} request")
             self.respond(400, "bad body\n")

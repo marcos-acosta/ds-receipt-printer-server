@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "nepso"
-version = "0.1.1"
+version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -16,9 +16,9 @@ dependencies = [
     { name = "pillow" },
     { name = "pyusb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/eb/44/9a31b56be53a27c4a07a5bce5f88a08268d88034c7c6c12d01b0cec1f95f/nepso-0.1.1.tar.gz", hash = "sha256:8106647897381d9ad7e93fbc9fb0cc152719be3daef646f8839f9f38a2e781f8", size = 697051, upload-time = "2026-08-01T04:05:14.496Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cb/a9/0d44417cdaf61a9cf173f1303a5e0286ac2a92e0f6e2aba55e0453211fe8/nepso-0.1.2.tar.gz", hash = "sha256:4536a2d02cdf777104721a47ee8e9d7a8ddd7aba397b929ad71497903d121b03", size = 697034, upload-time = "2026-08-06T05:57:13.921Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/51/79/55c9cba66eb86b63d54ff533e5809a208e938d09c2ea5292d1fbd25be2d6/nepso-0.1.1-py3-none-any.whl", hash = "sha256:0a82f6c31c7995f87423c7ea7963fe1f58cc1dc1422685236d7ca91fb5519697", size = 5061, upload-time = "2026-08-01T04:05:15.642Z" },
+    { url = "https://files.pythonhosted.org/packages/64/29/33273db1eb0f09adb3b602ca561bf6872d9a0d54d377445a32f1d16494e4/nepso-0.1.2-py3-none-any.whl", hash = "sha256:9b5da055493ff0d0e606a19145dcdf1d84c3cf9da3203cc82e41cb604207dd0a", size = 5044, upload-time = "2026-08-06T05:57:11.765Z" },
 ]
 
 [[package]]
@@ -271,6 +271,6 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "nepso", specifier = ">=0.1.1" },
+    { name = "nepso", specifier = ">=0.1.2" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
 ]
