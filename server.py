@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
-"""Web server that prints the body of each POST request."""
+"""Web server that prints the contents of webhook POST requests."""
 
 import json
+from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 import os
 
+from dotenv import load_dotenv
 from nepso import Printer, TcpTransport
 
 from handlers.linear_handler import LinearHandler
 from handlers.pagerduty_handler import PagerDutyHandler
 from handlers.webhook_body_handler import WebhookBodyHandler
+from util import read_secrets, signature_matches
+
+load_dotenv()
 
 PORT = 8082
 PRINTER_IP = os.environ.get("PRINTER_IP", "10.51.46.125")
@@ -19,30 +24,38 @@ LINEAR_USER_AGENT_SUBSTRING = "Linear"
 PAGERDUTY_USER_AGENT_SUBSTRING = "PagerDuty"
 
 
-def parse_body(body, content_type) -> str | None:
-    """Make a dictionary from the request body.
+@dataclass(frozen=True)
+class WebhookSource:
+    user_agent_substring: str
+    signature_header: str
+    secrets: list[str] = field(repr=False)
+    handler: WebhookBodyHandler
 
-    Returns the raw text if the body is not a known format.
-    """
+    @property
+    def header_key(self) -> str:
+        return self.signature_header.lower()
+
+    def matches(self, user_agent: str) -> bool:
+        return self.user_agent_substring in user_agent
+
+    def is_signed(self, body: bytes, headers: dict[str, str]) -> bool:
+        return signature_matches(body, headers.get(self.header_key, ""), self.secrets)
+
+
+def parse_body(body, content_type) -> dict | None:
     if not body:
         return {}
 
     try:
         text = body.decode("utf-8")
     except UnicodeDecodeError:
-        # The body is not text. Give the raw bytes.
         return None
 
     media_type = content_type.split(";")[0].strip().lower()
 
     if media_type == "application/x-www-form-urlencoded":
-        # Each key can occur more than one time. Keep only the first value.
         return {key: values[0] for key, values in parse_qs(text).items()}
 
-    if media_type == "application/json" or media_type.endswith("+json"):
-        return json.loads(text)
-
-    # The sender gave no usable type. Try JSON, then give the text.
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -51,40 +64,61 @@ def parse_body(body, content_type) -> str | None:
 
 class WebhookRequestHandler(BaseHTTPRequestHandler):
     printer: Printer = Printer(TcpTransport(PRINTER_IP), throttle_ms=200)
-    handlers: dict[str, WebhookBodyHandler] = {
-        LINEAR_USER_AGENT_SUBSTRING: LinearHandler(printer=printer),
-        PAGERDUTY_USER_AGENT_SUBSTRING: PagerDutyHandler(printer=printer),
-    }
+    sources: list[WebhookSource] = [
+        WebhookSource(
+            user_agent_substring=LINEAR_USER_AGENT_SUBSTRING,
+            signature_header="Linear-Signature",
+            secrets=read_secrets("LINEAR_WEBHOOK_SECRET"),
+            handler=LinearHandler(printer=printer),
+        ),
+        WebhookSource(
+            user_agent_substring=PAGERDUTY_USER_AGENT_SUBSTRING,
+            signature_header="X-PagerDuty-Signature",
+            secrets=read_secrets(
+                "PAGERDUTY_HIGH_PRIORITY_SECRET",
+                "PAGERDUTY_LOW_PRIORITY_SECRET",
+            ),
+            handler=PagerDutyHandler(printer=printer),
+        ),
+    ]
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length") or 0)
+        # The signature covers the raw bytes, so verify before parse_body.
         body = self.rfile.read(length) if length else b""
-        headers = {k: v for k, v in self.headers.items()}
+        headers = {name.lower(): value for name, value in self.headers.items()}
+        user_agent = headers.get("user-agent", "")
 
-        user_agent = headers.get("User-Agent", "")
-        data = parse_body(body, self.headers.get("Content-Type", ""))
-        if data is not None:
-            self.handle_data(data, user_agent)
+        source = next((s for s in self.sources if s.matches(user_agent)), None)
+        if source is None:
+            self.log(f"Couldn't find handler for user agent {user_agent}")
+            self.respond(404, "no handler\n")
+            return
 
-        self.send_response(200)
+        if not source.is_signed(body, headers):
+            self.log(f"Rejected an unsigned or badly signed {user_agent} request")
+            self.respond(401, "bad signature\n")
+            return
+
+        data = parse_body(body, headers.get("content-type", ""))
+        if data is None:
+            self.log(f"Couldn't parse the body of a {user_agent} request")
+            self.respond(400, "bad body\n")
+            return
+
+        source.handler.handle(data)
+        self.respond(200, "OK\n")
+
+    def respond(self, code: int, text: str):
+        payload = text.encode("utf-8")
+        self.send_response(code)
         self.send_header("Content-Type", "text/plain")
-        self.send_header("Content-Length", "3")
+        self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(b"OK\n")
-
-    def handle_data(self, data: dict, user_agent: str):
-        for user_agent_substring, handler in self.handlers.items():
-            if user_agent_substring in user_agent:
-                handler.handle(data)
-                return
-        self.log(f"Couldn't find handler for user agent {user_agent}")
-
-    def log_message(self, format, *args):
-        # Do not write the default request log. It hides the body output.
-        pass
+        self.wfile.write(payload)
 
     def log(self, message: str):
-        print(f"[Request handler] {message}")
+        print(f"[Request handler] {message}", flush=True)
 
 
 def main():
