@@ -1,6 +1,6 @@
 from nepso import CutAndPrint, Printable, Text
 from handlers.webhook_body_handler import WebhookBodyHandler
-from util import pad_newlines, print_timestamp
+from util import HR_STRAIGHT, pad_newlines, print_timestamp, strip_markdown_links
 
 
 class PagerDutyHandler(WebhookBodyHandler):
@@ -10,8 +10,8 @@ class PagerDutyHandler(WebhookBodyHandler):
         occurred_at_pretty = (
             print_timestamp(occurred_at) if occurred_at else "(no timestamp)"
         )
-        message_body = event.get("data", {}).get("message", "")
-        text = f"HELIUM BACKEND ALERT :: {occurred_at_pretty}\n---\n{message_body}"
+        message_body = strip_markdown_links(event.get("data", {}).get("message", ""))
+        text = f"HELIUM BACKEND ALERT\nTriggered at {occurred_at_pretty}\n{HR_STRAIGHT}\n{message_body}\n"
         return [
             Text(pad_newlines(text, 8)),
             CutAndPrint(),

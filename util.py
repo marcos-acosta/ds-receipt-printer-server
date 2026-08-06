@@ -4,6 +4,27 @@ import os
 from collections.abc import Sequence
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import re
+
+PRINTER_CHAR_WIDTH = 48
+HR_WAVY = "~" * PRINTER_CHAR_WIDTH
+HR_STRAIGHT = "-" * PRINTER_CHAR_WIDTH
+
+_MD_LINK = re.compile(
+    r"""
+    (?<!!)                                      # do not touch images
+    \[([^\[\]]*)\]                              # the display text
+    \(\s*
+        (?:<[^<>]*>|[^()\s]*)                   # the target, bare or in < >
+        (?:\s+(?:"[^"]*"|'[^']*'|\([^()]*\)))?  # an optional title
+    \s*\)
+    """,
+    re.VERBOSE,
+)
+
+
+def strip_markdown_links(text: str) -> str:
+    return _MD_LINK.sub(r"\1", text)
 
 
 def read_secrets(*variables: str) -> list[str]:
