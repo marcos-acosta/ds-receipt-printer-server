@@ -40,15 +40,24 @@ class SlackbotHandler(WebhookBodyHandler):
         # Nothing to print
         if not message_text_pretty and len(images) == 0:
             return None
-        print_text = f"Message from {sender}\nSent at {sent_at_pretty}\n{HR_WAVY}\n{message_text_pretty}"
-        printables: list[Printable] = [Text(pad_newlines(print_text, 8))]
+
+        header = f"Message from {sender}\nSent at {sent_at_pretty}\n{HR_WAVY}\n"
+        printables: list[Printable] = [Text(header)]
+
+        if message_text_pretty:
+            formatted_text = (
+                pad_newlines(message_text_pretty, 4)
+                if len(images) == 0
+                else message_text_pretty
+            )
+            printables.append(Text(formatted_text))
 
         # Print the first image only. More than one fills the paper too fast.
         if images:
             if len(images) > 1:
                 print(f"[Slackbot handler] Ignoring {len(images) - 1} extra image(s)")
             try:
-                printables.append(Image(write_temp_image(images[0])))
+                printables.extend([Text("\n\n"), Image(write_temp_image(images[0]))])
             except Exception as e:
                 print(f"[Slackbot handler] Could not prepare the image: {e}")
 
