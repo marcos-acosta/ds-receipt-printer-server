@@ -41,7 +41,7 @@ class SlackbotHandler(WebhookBodyHandler):
         if not message_text_pretty and len(images) == 0:
             return None
 
-        header = f"Message from {sender}\nSent at {sent_at_pretty}\n{HR_WAVY}\n"
+        header = f"Message from {sender}\nSent at {sent_at_pretty}\n{HR_WAVY}"
         printables: list[Printable] = [Text(header)]
 
         if message_text_pretty:
@@ -57,7 +57,7 @@ class SlackbotHandler(WebhookBodyHandler):
             if len(images) > 1:
                 print(f"[Slackbot handler] Ignoring {len(images) - 1} extra image(s)")
             try:
-                printables.extend([Text("\n\n"), Image(write_temp_image(images[0]))])
+                printables.extend([Text("\n"), Image(write_temp_image(images[0]))])
             except Exception as e:
                 print(f"[Slackbot handler] Could not prepare the image: {e}")
 
