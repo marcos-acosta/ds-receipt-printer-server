@@ -79,5 +79,13 @@ def print_timestamp(iso: str) -> str:
     )
 
 
+def print_timestamp_epoch(ts: float) -> str:
+    return (
+        datetime.fromtimestamp(ts)
+        .astimezone(ZoneInfo("America/New_York"))
+        .strftime("%B %d, %Y, %I:%M %p")
+    )
+
+
 def pad_newlines(text: str, target_lines: int) -> str:
     return text + "\n" * max(0, target_lines - 1 - text.count("\n"))

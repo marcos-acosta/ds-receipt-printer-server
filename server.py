@@ -15,6 +15,7 @@ from nepso import Printer, TcpTransport
 from handlers.linear_handler import LinearHandler
 from handlers.pagerduty_handler import PagerDutyHandler
 from handlers.plaintext_handler import PlaintextHandler
+from handlers.slackbot_handler import SlackbotHandler
 from handlers.webhook_body_handler import WebhookBodyHandler
 from util import read_secrets, signature_matches
 
@@ -126,8 +127,9 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
         ),
         WebhookSource(
             user_agent_substring=SLACKBOT_USER_AGENT_SUBSTRING,
-            handler=PlaintextHandler(printer=printer),
-            expect_signature=False,
+            handler=SlackbotHandler(printer=printer),
+            secrets=read_secrets("SLACKBOT_SECRET"),
+            signature_header="X-Slackbot-Signature",
         ),
     ]
 

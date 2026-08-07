@@ -25,5 +25,5 @@ class LinearHandler(WebhookBodyHandler):
         estimate_pretty = estimate if estimate else "[?]"
         description = strip_markdown_links(data.get("description", "(no description)"))
         identifier = data.get("identifier", "(no identifier)")
-        text = f"\n\n\n{identifier}\n{title}\n{HR_WAVY}\nEstimate: {estimate_pretty} point(s)\nAssigned to {assignee}\nCreated by {author}\nCreated at {created_at_pretty}\n{HR_WAVY}\n{description}\n"
+        text = f"\n\n\n{identifier}\n{title}\n{HR_WAVY}\nEstimate: {estimate_pretty} point(s)\nAssigned to {assignee}\nCreated by {author}\nCreated at {created_at_pretty}\n{HR_WAVY}\n{description}\n\n\n\n"
         return [Text(pad_newlines(text, 8)), CutAndPrint()]
