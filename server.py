@@ -157,6 +157,8 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
             self.respond(400, "bad body\n")
             return
 
+        self.log(f"Received message, forwarding to {type(source.handler).__name__}")
+
         source.handler.handle(data)
         self.respond(200, "OK\n")
 
