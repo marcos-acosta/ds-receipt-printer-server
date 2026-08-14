@@ -12,6 +12,7 @@ import os
 from dotenv import load_dotenv
 from nepso import Printer, TcpTransport
 
+from handlers.github_pull_request_handler import GitHubPullRequestHandler
 from handlers.linear_handler import LinearHandler
 from handlers.pagerduty_handler import PagerDutyHandler
 from handlers.plaintext_handler import PlaintextHandler
@@ -28,6 +29,7 @@ LINEAR_USER_AGENT_SUBSTRING = "Linear"
 PAGERDUTY_USER_AGENT_SUBSTRING = "PagerDuty"
 CRON_USER_AGENT_SUBSTRING = "Cron"
 SLACKBOT_USER_AGENT_SUBSTRING = "Slackbot"
+GITHUB_USER_AGENT_SUBSTRING = "GitHub"
 
 
 class SerializedPrinter(Printer):
@@ -74,7 +76,7 @@ class WebhookSource:
         return self.signature_header.lower() if self.signature_header else None
 
     def matches(self, user_agent: str) -> bool:
-        return self.user_agent_substring in user_agent
+        return self.user_agent_substring.lower() in user_agent.lower()
 
     def is_signed(self, body: bytes, headers: dict[str, str]) -> bool:
         return self.header_key is not None and signature_matches(
@@ -130,6 +132,12 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
             handler=SlackbotHandler(printer=printer),
             secrets=read_secrets("SLACKBOT_SECRET"),
             signature_header="X-Slackbot-Signature",
+        ),
+        WebhookSource(
+            user_agent_substring=GITHUB_USER_AGENT_SUBSTRING,
+            handler=GitHubPullRequestHandler(printer=printer),
+            secrets=read_secrets("GITHUB_SECRET"),
+            signature_header="X-Hub-Signature-256",
         ),
     ]
 
