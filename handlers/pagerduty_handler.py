@@ -7,7 +7,7 @@ class PagerDutyHandler(WebhookBodyHandler):
     def generatePrintables(self, message: dict) -> list[Printable] | None:
         print(message, flush=True)
         event = message.get("event", {})
-        data = message.get("data", {})
+        data = event.get("data", {})
         title = data.get("title", "(no title)")
         assignees = data.get("assignees", [])
         assignee = (
