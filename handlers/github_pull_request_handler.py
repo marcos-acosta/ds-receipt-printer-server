@@ -1,6 +1,7 @@
 from nepso import CutAndPrint, Printable, Text
 from handlers.webhook_body_handler import WebhookBodyHandler
 from util import HR_WAVY, print_timestamp
+import re
 
 
 class GitHubPullRequestHandler(WebhookBodyHandler):
@@ -12,7 +13,8 @@ class GitHubPullRequestHandler(WebhookBodyHandler):
         pr = message.get("pull_request", {})
         title = pr.get("title", "(no title)")
         sender = pr.get("user", {}).get("login", "(no sender)")
-        body = pr.get("body", "(no body)")
+        body_raw = pr.get("body", "(no body)")
+        body = re.sub(r"[\n\r]+", "\n", body_raw)
         requested_reviewer = message.get("requested_reviewer", {}).get(
             "login", "(no requested reviewer)"
         )
