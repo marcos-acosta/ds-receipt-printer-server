@@ -6,7 +6,7 @@ import re
 
 class GitHubPullRequestHandler(WebhookBodyHandler):
     def __init__(self, *args, **kwargs):
-        self.super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.pr_numbers = BoundedDict(maxsize=128)
 
     def generatePrintables(self, message: dict) -> list[Printable] | None:
