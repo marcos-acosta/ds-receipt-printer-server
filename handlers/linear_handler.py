@@ -1,6 +1,12 @@
 from nepso import CutAndPrint, Printable, Text
 from handlers.webhook_body_handler import WebhookBodyHandler
-from util import HR_WAVY, pad_newlines, print_timestamp, strip_markdown_links
+from util import (
+    HR_WAVY,
+    pad_newlines,
+    print_timestamp,
+    strip_markdown_links,
+    truncate_to_lines,
+)
 
 
 class LinearHandler(WebhookBodyHandler):
@@ -24,6 +30,7 @@ class LinearHandler(WebhookBodyHandler):
         estimate = data.get("estimate", 0)
         estimate_pretty = estimate if estimate else "[?]"
         description = strip_markdown_links(data.get("description", "(no description)"))
+        description_truncated = truncate_to_lines(description, max_lines=8)
         identifier = data.get("identifier", "(no identifier)")
-        text = f"\n\n\n{identifier}\n{title}\n{HR_WAVY}\nEstimate: {estimate_pretty} point(s)\nAssigned to {assignee}\nCreated by {author}\nCreated at {created_at_pretty}\n{HR_WAVY}\n{description}\n\n\n\n"
+        text = f"\n\n\n{identifier}\n{title}\n{HR_WAVY}\nEstimate: {estimate_pretty} point(s)\nAssigned to {assignee}\nCreated by {author}\nCreated at {created_at_pretty}\n{HR_WAVY}\n{description_truncated}\n\n\n\n"
         return [Text(pad_newlines(text, 8)), CutAndPrint()]
