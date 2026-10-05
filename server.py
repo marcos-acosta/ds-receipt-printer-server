@@ -110,7 +110,9 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
         WebhookSource(
             user_agent_substring=LINEAR_USER_AGENT_SUBSTRING,
             handler=LinearHandler(printer=printer),
-            secrets=read_secrets("LINEAR_WEBHOOK_SECRET"),
+            secrets=read_secrets(
+                "LINEAR_WEBHOOK_SECRET", "LINEAR_WEBHOOK_BUSES_SECRET"
+            ),
             signature_header="Linear-Signature",
         ),
         WebhookSource(
