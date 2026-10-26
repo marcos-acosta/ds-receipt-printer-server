@@ -12,6 +12,7 @@ import os
 from dotenv import load_dotenv
 from nepso import Printer, TcpTransport
 
+from handlers.claude_handler import ClaudeHandler
 from handlers.github_pull_request_handler import GitHubPullRequestHandler
 from handlers.linear_handler import LinearHandler
 from handlers.pagerduty_handler import PagerDutyHandler
@@ -27,7 +28,7 @@ PRINTER_IP = os.environ.get("PRINTER_IP", "10.51.46.125")
 
 LINEAR_USER_AGENT_SUBSTRING = "Linear"
 PAGERDUTY_USER_AGENT_SUBSTRING = "PagerDuty"
-CRON_USER_AGENT_SUBSTRING = "Cron"
+CLAUDE_USER_AGENT_SUBSTRING = "Claude"
 SLACKBOT_USER_AGENT_SUBSTRING = "Slackbot"
 GITHUB_USER_AGENT_SUBSTRING = "GitHub"
 
@@ -125,11 +126,6 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
             signature_header="X-PagerDuty-Signature",
         ),
         WebhookSource(
-            user_agent_substring=CRON_USER_AGENT_SUBSTRING,
-            handler=PlaintextHandler(printer=printer),
-            expect_signature=False,
-        ),
-        WebhookSource(
             user_agent_substring=SLACKBOT_USER_AGENT_SUBSTRING,
             handler=SlackbotHandler(printer=printer),
             secrets=read_secrets("SLACKBOT_SECRET"),
@@ -141,7 +137,13 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
             secrets=read_secrets("GITHUB_SECRET"),
             signature_header="X-Hub-Signature-256",
         ),
+        WebhookSource(
+            user_agent_substring=CLAUDE_USER_AGENT_SUBSTRING,
+            handler=ClaudeHandler(printer=printer),
+            expect_signature=False,
+        ),
     ]
+    plaintext_handler = PlaintextHandler(printer=printer)
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length") or 0)
@@ -150,26 +152,23 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
         headers = {name.lower(): value for name, value in self.headers.items()}
         user_agent = headers.get("user-agent", "")
         data = parse_body(body, headers.get("content-type", ""))
+        handler = self.plaintext_handler
 
         source = next((s for s in self.sources if s.matches(user_agent)), None)
-        if source is None:
-            self.log(f"Couldn't find handler for user agent {user_agent}")
-            self.respond(404, "no handler\n")
-            return
+        if source is not None:
+            if source.expect_signature and not source.is_signed(body, headers):
+                self.log(f"Rejected an unsigned or badly signed {user_agent} request")
+                self.respond(401, "bad signature\n")
+                return
+            if data is None:
+                self.log(f"Couldn't parse the body of a {user_agent} request")
+                self.respond(400, "bad body\n")
+                return
+            handler = source.handler
 
-        if source.expect_signature and not source.is_signed(body, headers):
-            self.log(f"Rejected an unsigned or badly signed {user_agent} request")
-            self.respond(401, "bad signature\n")
-            return
+        self.log(f"Received message, forwarding to {type(handler).__name__}")
 
-        if data is None:
-            self.log(f"Couldn't parse the body of a {user_agent} request")
-            self.respond(400, "bad body\n")
-            return
-
-        self.log(f"Received message, forwarding to {type(source.handler).__name__}")
-
-        source.handler.handle(data)
+        handler.handle(data)
         self.respond(200, "OK\n")
 
     def respond(self, code: int, text: str):
