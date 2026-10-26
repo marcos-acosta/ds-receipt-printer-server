@@ -14,5 +14,5 @@ class ClaudeHandler(WebhookBodyHandler):
         byline = f"Printed by Claude at {print_timestamp(now_datestring)}"
         if on_behalf_of:
             byline = byline + f" on behalf of {on_behalf_of}"
-        full_message = f"\n{byline}\n{HR_WAVY}\n{text}"
+        full_message = f"{byline}\n{HR_WAVY}\n{text}"
         return [Text(pad_newlines(full_message, 8)), CutAndPrint()]
